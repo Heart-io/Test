@@ -13,15 +13,6 @@
             background-color: #f0f0f0;
             display: block;
         }
-        .ball {
-            position: absolute;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background-color: red;
-            cursor: grab;
-            transform: translate(-50%, -50%);
-        }
     </style>
 </head>
 <body>
@@ -129,21 +120,33 @@
             const server = http.createServer(app);
             const io = socketIo(server);
 
+            let ball = {
+                x: 400,
+                y: 300,
+            };
+
             app.use(express.static(__dirname));
 
             io.on('connection', (socket) => {
                 console.log('A user connected');
 
+                // Send initial ball position to the newly connected client
+                socket.emit('ballUpdate', ball);
+
+                // Handle ball movement
                 socket.on('ballMove', (data) => {
-                    socket.broadcast.emit('ballUpdate', data);
+                    ball = { x: data.x, y: data.y };
+                    socket.broadcast.emit('ballUpdate', ball);
                 });
 
                 socket.on('ballStartDrag', (data) => {
-                    socket.broadcast.emit('ballUpdate', data);
+                    ball = { x: data.x, y: data.y };
+                    socket.broadcast.emit('ballUpdate', ball);
                 });
 
                 socket.on('ballStopDrag', (data) => {
-                    socket.broadcast.emit('ballUpdate', data);
+                    ball = { x: data.x, y: data.y };
+                    socket.broadcast.emit('ballUpdate', ball);
                 });
 
                 socket.on('disconnect', () => {
@@ -159,4 +162,3 @@
     </script>
 </body>
 </html>
-
