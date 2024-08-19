@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer Draggable Ball</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+        #gameCanvas {
+            background-color: #f0f0f0;
+            display: block;
+        }
+        .ball {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: red;
+            cursor: grab;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const ball = {
+            x: canvas.width / 2,
+            y: canvas.height / 2,
+            radius: 25,
+            dragging: false,
+        };
+
+        function drawBall() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+            ctx.fillStyle = 'red';
+            ctx.fill();
+            ctx.closePath();
+        }
+
+        function updateBallPosition(x, y) {
+            ball.x = x;
+            ball.y = y;
+            drawBall();
+        }
+
+        let offsetX, offsetY;
+
+        function startDrag(x, y) {
+            const dist = Math.sqrt((x - ball.x) ** 2 + (y - ball.y) ** 2);
+            if (dist < ball.radius) {
+                ball.dragging = true;
+                offsetX = x - ball.x;
+                offsetY = y - ball.y;
+                socket.emit('ballStartDrag', { x: ball.x, y: ball.y });
+            }
+        }
+
+        function drag(x, y) {
+            if (ball.dragging) {
+                const newX = x - offsetX;
+                const newY = y - offsetY;
+                updateBallPosition(newX, newY);
+                socket.emit('ballMove', { x: newX, y: newY });
+            }
+        }
+
+        function stopDrag() {
+            if (ball.dragging) {
+                ball.dragging = false;
+                socket.emit('ballStopDrag', { x: ball.x, y: ball.y });
+            }
+        }
+
+        // Mouse events
+        canvas.addEventListener('mousedown', (event) => {
+            startDrag(event.offsetX, event.offsetY);
+        });
+
+        canvas.addEventListener('mousemove', (event) => {
+            drag(event.offsetX, event.offsetY);
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            stopDrag();
+        });
+
+        // Touch events
+        canvas.addEventListener('touchstart', (event) => {
+            const touch = event.touches[0];
+            startDrag(touch.clientX - canvas.offsetLeft, touch.clientY - canvas.offsetTop);
+            event.preventDefault(); // Prevent scrolling
+        });
+
+        canvas.addEventListener('touchmove', (event) => {
+            const touch = event.touches[0];
+            drag(touch.clientX - canvas.offsetLeft, touch.clientY - canvas.offsetTop);
+            event.preventDefault(); // Prevent scrolling
+        });
+
+        canvas.addEventListener('touchend', () => {
+            stopDrag();
+        });
+
+        socket.on('ballUpdate', (data) => {
+            updateBallPosition(data.x, data.y);
+        });
+
+        drawBall();
+
+        // Server-side logic (for illustration; this would be in a separate server file)
+        const serverScript = document.createElement('script');
+        serverScript.textContent = `
+            const express = require('express');
+            const http = require('http');
+            const socketIo = require('socket.io');
+
+            const app = express();
+            const server = http.createServer(app);
+            const io = socketIo(server);
+
+            app.use(express.static(__dirname));
+
+            io.on('connection', (socket) => {
+                console.log('A user connected');
+
+                socket.on('ballMove', (data) => {
+                    socket.broadcast.emit('ballUpdate', data);
+                });
+
+                socket.on('ballStartDrag', (data) => {
+                    socket.broadcast.emit('ballUpdate', data);
+                });
+
+                socket.on('ballStopDrag', (data) => {
+                    socket.broadcast.emit('ballUpdate', data);
+                });
+
+                socket.on('disconnect', () => {
+                    console.log('User disconnected');
+                });
+            });
+
+            server.listen(3000, () => {
+                console.log('Server running on port 3000');
+            });
+        `;
+        document.body.appendChild(serverScript);
+    </script>
+</body>
+</html>
+
